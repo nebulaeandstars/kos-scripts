@@ -1,6 +1,6 @@
 function launch {
-    lock throttle to 1.
     countdown_s(3).
+    lock throttle to 1.
     init_staging().
     stage.
 }
@@ -142,10 +142,11 @@ function normal_vector {
 
 function current_isp {
     local isp is 0.
-    list engines in myEngines.
-    for en in myEngines {
+    local ship_engines is list().
+    list engines in ship_engines.
+    for en in ship_engines {
         if en:ignition and not en:flameout {
-            set isp to isp + (en:isp * (en:maxThrust / ship:maxThrust)).
+            set isp to isp + (en:isp * (en:maxthrust / ship:maxthrust)).
         }
     }
     return isp.

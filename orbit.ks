@@ -55,7 +55,7 @@ function get_ascention_pitch {
         } else {
             set prograde_vector to ship:prograde:forevector.
         }
-        return 90 - vang(ship:up:forevector, prograde_vector).
+        return min(90 - vang(ship:up:forevector, prograde_vector), 80).
     }
 }
 
@@ -75,42 +75,25 @@ function do_ascent {
     logmsg("ascent complete").
 }
 
+function circ_score {
+    parameter burn.
+    local mnv is node(burn[0], burn[1], burn[2], burn[3]).
+    add mnv.
+    local score is 0 - mnv:orbit:eccentricity.
+    remove mnv.
+    return score.
+}
+
 function circularize {
     logmsg("waiting to exit atmosphere").
     lock steering to prograde.
     wait until ship:altitude > 70000.
-
-    logmsg("warping to apoapsis").
-    local warp_eta is time_to_apoapsis - max_circularisation_tta - 10.
     kuniverse:timewarp:cancelwarp().
-    set kuniverse:timewarp:mode to "RAILS".
-    kuniverse:timewarp:warpto(time:seconds + warp_eta).
-    wait time_to_apoapsis - max_circularisation_tta.
 
-    logmsg("starting circularisation").
-    until apoapsis - periapsis < 500 {
-        local desired_throttle is 1 - scale_in_range(
-            time_to_apoapsis,
-            min_circularisation_tta,
-            max_circularisation_tta
-        ).
-
-        if desired_throttle < min_circularisation_burn {
-            set desired_throttle to min_circularisation_burn.
-        }
-
-        if time_to_apoapsis > 600 {
-            set desired_throttle to 1.
-            if periapsis > 70000 {
-                break.
-            }
-        }
-
-        lock throttle to desired_throttle.
-    }
-
-    lock throttle to 0.0.
-    logmsg("circularisation complete").
+    logmsg("creating circularisation node").
+    local mnv is maneuver_find(circ_score@, list(true, false, false, true)).
+    add mnv.
+    maneuver_execute(mnv).
 }
 
 main().

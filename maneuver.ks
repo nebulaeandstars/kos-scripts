@@ -51,7 +51,88 @@ function maneuver_turn_eta {
 function maneuver_perform_burn {
     parameter mnv.
     local original_vector is mnv:burnvector.
+
     lock throttle to 1.
-    wait maneuver_burn_time(mnv).
+
+    // wait until vang(original_vector, mnv:burnvector) > 45.
+    // wait maneuver_burn_time(mnv).
+
+    lock twr to max((ship:availablethrust / ship:mass), 0.0000001).
+    lock limited_thrust to min(mnv:burnvector:mag / twr, 1).
+    lock throttle to max(limited_thrust, 0.005).
+    wait until vang(original_vector, mnv:burnvector) > 90.
+
     lock throttle to 0.
+}
+
+function maneuver_improve {
+    parameter burn, score_function, step_size is 1.
+    parameter mask is list(true, true, true, true).
+
+    local candidates is list().
+
+    local i is 0.
+    until i = burn:length {
+        if mask[i] {
+            local c1 is burn:copy().
+            local c2 is burn:copy().
+            set c1[i] to c1[i] + step_size.
+            set c2[i] to c2[i] - step_size.
+            candidates:add(c1).
+            candidates:add(c2).
+        }
+        set i to i + 1.
+    }
+
+    local best_burn is burn.
+    local best_score is score_function(burn).
+
+    for candidate in candidates {
+        local score is score_function(candidate).
+        if score > best_score {
+            set best_burn to candidate.
+            set best_score to score.
+        }
+    }
+
+    return list(best_burn, best_score).
+}
+
+function _maneuver_improve_multi {
+    parameter burn, score_function, step_size.
+    parameter mask is list(true, true, true, true).
+
+    local old_score is score_function(burn).
+    until false {
+        local improvement is maneuver_improve(
+            burn, score_function, step_size, mask
+        ).
+        local new_burn is improvement[0].
+        local score is improvement[1].
+
+        if score > old_score {
+            set burn to new_burn.
+            set old_score to score.
+        } else {
+            break.
+        }
+    }
+
+    return burn.
+}
+
+function maneuver_find {
+    parameter score_function.
+    parameter mask is list(true, true, true, true).
+
+    local burn is list(time:seconds + 30, 0, 0, 0).
+
+    for step_size in list(300, 100, 10, 1, 0.1) {
+        set burn to _maneuver_improve_multi(
+            burn, score_function@, step_size, mask
+        ).
+    }
+
+    local mnv is node(burn[0], burn[1], burn[2], burn[3]).
+    return mnv.
 }
